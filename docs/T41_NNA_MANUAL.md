@@ -53,7 +53,7 @@ Three reading paths:
 | **H**, **M**, **L** | Confidence attached to a statement or table row. **H**: established by measurement on the device. **M**: consistent with device measurement but not isolated by a dedicated test. **L**: inferred from the vendor code or from a single observation |
 | **Not characterised** | The behaviour has not been established; the statement is descriptive only. Every such item is collected in [Appendix C](#appendix-c--not-characterised) |
 | *field*, *register* | A configuration *field* is one addressable quantity in bank A or B. The word *register* is reserved for the MXUv3 vector registers `vr0`–`vr31` and the word registers `w0`–`w15` |
-| *recipe*, *executor* | A *recipe* is a procedure in this manual for running one kind of layer. An *executor* is the vendor library's implementation of the same; the mapping is in [Appendix B](#appendix-b--vendor-executor-map) |
+| *recipe*, *executor* | A *recipe* is a procedure in this manual for running one kind of layer. An *executor* is the vendor library's implementation of the same |
 | *unit A*, *unit B* | The two execution units. Unit A is the one fed on port `0x20`, whose group count is `A.1c` and whose start offset is `B.10`; unit B is fed on port `0x21`, with `A.1d` and `B.11` ([§3.3](#33-the-two-execution-units)) |
 | *the NNA* | The accelerator. The vendor software calls it the AIE; Ingenic calls this generation NNA2 |
 | *walk program*, *program table* | The *walk program* is the schedule the array follows during a MAC ([§3.5](#35-the-walk-program)); the *program table* is the sixteen-entry storage that holds it |
@@ -83,7 +83,7 @@ to `nnrwr` and the table port to `nndwr`. Each instruction has its own immediate
 | **commit** | The `nncmd` command that ends a tile's accumulation, clears the accumulators and publishes the result |
 | **descriptor** | One 8-byte NNDMA transfer record in DESRAM |
 | **drain** | Reading a result out of a readout bank with `nndrd` |
-| **executor** | The vendor library's procedure for one kind of layer ([Appendix B](#appendix-b--vendor-executor-map)) |
+| **executor** | The vendor library's procedure for one kind of layer |
 | **feed** | Pushing operands into the array with `nndwr` |
 | **general int8 executor** | The vendor executor for 8-bit operands with floating-point output — the recipe of [§11.7](#117-floating-point-output-heads) |
 | **halo** | The input rows and columns beyond a tile's own footprint that a 3×3 kernel needs — one on each side at stride 1 |
@@ -114,7 +114,7 @@ to `nnrwr` and the table port to `nndwr`. Each instruction has its own immediate
 | **tap slot** | One 32-input × 32-output weight matrix's worth of resident weight storage, as counted by the vendor planner |
 | **tile** | 2 rows × 4 pixels × 32 output channels: the unit of work the array commits at once |
 | **unit** | One of the two execution units, A and B |
-| **vendor descriptor** | The per-layer record in the model file from which the vendor library plans a layer ([Appendix B](#appendix-b--vendor-executor-map)); distinct from an NNDMA descriptor |
+| **vendor descriptor** | The per-layer record in the model file from which the vendor library plans a layer; distinct from an NNDMA descriptor |
 | **walk** | The sequence of operand positions the array visits during one MAC phase |
 | **weight slice** | 256 bytes of weights, pushed as four 64-byte writes to the four weight ports |
 | **whole-input mode** | Keeping a layer's entire input resident in ORAM instead of a row ring |
@@ -149,10 +149,8 @@ to `nnrwr` and the table port to `nndwr`. Each instruction has its own immediate
 
 **Appendices**
 - [Appendix A — Sources](#appendix-a--sources)
-- [Appendix B — Vendor executor map](#appendix-b--vendor-executor-map)
 - [Appendix C — Not characterised](#appendix-c--not-characterised)
 - [Appendix D — Register-number cross-reference](#appendix-d--register-number-cross-reference)
-- [Appendix E — Complete example listing](#appendix-e--complete-example-listing)
 
 
 ---
@@ -388,8 +386,7 @@ For an `H × W × C` map with `bits`-wide elements:
 | One plane | `H ·` row bytes |
 | Whole tensor | `D ·` plane bytes, planes consecutive |
 
-The runtime's tensor descriptor stores the dimensions as `+0x00 N`, `+0x04 D`, `+0x08 H`, `+0x0c W`
-([Appendix B](#appendix-b--vendor-executor-map)).
+The runtime's tensor descriptor stores the dimensions as `+0x00 N`, `+0x04 D`, `+0x08 H`, `+0x0c W`.
 
 **Row padding.** Some vendor planners round the row length up to a multiple of 64 (`round64`) and others use
 the tensor's own unrounded stride. The two agree whenever `W` is a multiple of 4, which holds for every
@@ -680,8 +677,7 @@ Every convolution carries one 256-byte requantization table per 32-channel outpu
 file after the weights and consumed verbatim. Two table formats are used by the recipes in this manual,
 selected by the readout path; a third, a 384-byte two-slope form, belongs to an alternative im2col
 procedure ([§11.8](#118-large-weights-and-channel-concatenation)) and is described there. Which of the
-first two applies is given by the layer's mode code in the vendor descriptor
-([Appendix B](#appendix-b--vendor-executor-map)): 1 selects the floating-point path, 2 the array's own
+first two applies is given by the layer's mode code in the vendor descriptor: 1 selects the floating-point path, 2 the array's own
 packed path.
 
 #### 3.8.1 Common structure
@@ -1542,8 +1538,7 @@ gate but is not sufficient on its own.
 
 This chapter takes one layer from an unopened device to a verified output tensor, applying in order
 [§4](#4-the-configuration-model), [§5](#5-running-a-layer), [§6](#6-memory-and-dma) and
-[§7](#7-operational-hazards); each section says what is done and where the governing rule is stated. The
-complete C listing is [Appendix E](#appendix-e--complete-example-listing); its constants are quoted here.
+[§7](#7-operational-hazards); each section says what is done and where the governing rule is stated.
 
 The example layer is a 1×1 convolution, `Cin = 64`, `Cout = 128`, `H = 12`, `W = 20`, stride 1, with 4-bit
 activations, weights and output ([§11.1](#111-11-4-bit-operands)): `D = 2` input channel groups and
@@ -1628,7 +1623,7 @@ ran previously.
 ### 8.5 Configure
 
 Configuration reaches the NNA through the word file `w0…w15`, one `nnrwr` per field
-([§5.2](#52-field-configuration)). The listing describes the layer in a descriptor and calls
+([§5.2](#52-field-configuration)). The example describes the layer in a descriptor and calls
 `nna_config_apply()`, which derives the encodings ([§4](#4-the-configuration-model)). The fields divide
 into those latched at the arm and those read per tile; for the example layer the static ones come out as:
 
@@ -1739,11 +1734,10 @@ Two classes of error are invisible to instruction-level inspection and require r
 ([§7.10](#710-errors-invisible-to-static-inspection)): values inside configuration records — including
 program words — and anything that depends on the residual state of the `vr31` word file.
 
-### 8.9 The complete listing
+### 8.9 Details that are easy to get wrong
 
-[Appendix E](#appendix-e--complete-example-listing) contains the whole sequence of this chapter as
-compilable C against the companion API ([§16](#16-runtime-api)), from `open()` to the byte comparison. Its
-constants and its ORAM and DESRAM plans are the ones quoted above. Three details of it are easy to get wrong:
+Three details of this sequence, written against the companion API ([§16](#16-runtime-api)), are easy to get
+wrong:
 
 - The activation feed is **outside** the output-group loop: re-feeding per group pushes each window `Dout`
   times, and every operand after the first extra push lands in the wrong slot.
@@ -1840,8 +1834,7 @@ the last committed-but-undrained tile into the next column block or row pair.
 
 #### 11.1.1 Serves and guards
 
-Serves 1×1 layers with `2 ≤ D ≤ 32`, stride 1 or 2, no padding, 4-bit input and weights, packed output. The vendor
-descriptor fields that select this recipe are listed in [Appendix B](#appendix-b--vendor-executor-map).
+Serves 1×1 layers with `2 ≤ D ≤ 32`, stride 1 or 2, no padding, 4-bit input and weights, packed output.
 
 **Constraints.** `D = Cin/32` input groups, summed over all inputs of the layer (a multi-input 1×1 is a channel
 concat; see [§11.8](#118-large-weights-and-channel-concatenation)), **`2 ≤ D ≤ 32`** (a single input group is served
@@ -2323,8 +2316,7 @@ Guards, in manual terms: `D = 1`; `Dout ≥ 2`; `Hout % 4 == 0` (the row quad); 
 on `Dout · 9 · bits`; and a single weight pass, `Dout · tap_slots ≤ 0x120` with `tap_slots = 9 · w_bits / 2`
 per output group (36 at 8-bit).
 The stride `s` is equal in both axes and at most 2, and `Hout` is even at stride 2.
-The vendor planner applies further descriptor-level guards, listed in [Appendix
-B](#appendix-b--vendor-executor-map). Choosing between this recipe and
+The vendor planner applies further descriptor-level guards. Choosing between this recipe and
 [§11.3](#113-single-input-group-row-quad) is covered in [§9](#9-choosing-a-recipe).
 
 #### 11.4.2 Geometry and derived sizes
@@ -2832,8 +2824,7 @@ gives the same output because both compute the same convolution. [M]
 - Not characterised: the strided-view and grouped-convolution paths of the second table. What is
   established: the flag is clear and the divisor is 1 on every layer of the reference network.
 - Not characterised: the descriptor members `t->MBuffer->data` and `t->byte_offset` [L] as names. What is
-  established: the shape struct `N, D, H, W`. See [Appendix B](#appendix-b--vendor-executor-map),
-  [Appendix C](#appendix-c--not-characterised).
+  established: the shape struct `N, D, H, W`. See [Appendix C](#appendix-c--not-characterised).
 # Part IV — Reference
 
 Part IV is the reference: the six instructions and their encodings, every configuration field with its
@@ -3621,8 +3612,7 @@ NNA instructions, and in §2.2 the vector register file. It states the operation
 register ([§3.6](#36-mac-phases-and-the-walk-position)). It says nothing about what lies behind the
 coprocessor interface; it defers that to an "NNA manual" that is not publicly available.
 
-**The vendor inference library.** The build every function address in
-[Appendix B](#appendix-b--vendor-executor-map) refers to is `libvenus.m.so` version 0.0.3.ALPHA, built
+**The vendor inference library.** The build analysed is `libvenus.m.so` version 0.0.3.ALPHA, built
 2022-05-18 with GCC 7.2.0 r5.1.1 and glibc 2.29, byte-identical to the copy shipped in the Magik toolkit's
 `InferenceKit/nna2/mips720-glibc229/lib/uclibc/`. The application-facing `libvenus.so` on the camera is a
 newer 0.1.7.3.ALPHA (2023-06-20, r5.1.5) with the same executors. Static analysis used a disassembler
@@ -3645,216 +3635,6 @@ toolkit headers. None describes the array.
 [§1.1](#11-the-atomic-operation) comes from the observable operation — one `nnmac` produces 32 output
 channels and one committed tile reads back as 16 row-banks of 16 int32 — not from a vendor statement.
 
-**Related documents** in the same directory:
-
-| Document | Contents |
-|---|---|
-| `PLATFORM.md` | The measured physical memory map and the `/dev/soc-nna` device model — the authority for every address in this manual |
-| `BOARD_PERIPHERALS.md` | The camera board outside the NNA: GPIO, motors, audio, device nodes, the DDR split |
-| `MXUV3.md`, `MXU3_OPCODE_TABLE.md`, `MXUV3_ISA_HARDWARE_RE.md` | The MXUv3 vector coprocessor: instruction set, opcode table, and the operations used by the image-layer feed |
-| `T41_OPERAND_DATA_LAYOUT.md` | The canonical operand data layouts |
-| `T41_NNCMD_EXPERIMENTS.md` | The `nncmd` semantics |
-| `MAGIK_PACKING_QUANT.md` | The model file's weight packing and quantization |
-| `T41_DRIVER_INTERFACE.md`, `NNA_CU2_PINNING.md` | The kernel driver ABI and the coprocessor-enable pinning requirement |
-
-The remaining per-topic notes in the directory (`t41_nna_architecture.md`, `T41_NNA.md`,
-`AIE_FEATURE_SET.md`, `T41_NNA_ISA.md`, `T41_NNA_CONFIG_REGISTERS.md`, `T41_OPERAND_BANK_FEED.md`,
-`T41_NNA_DESCRIPTOR_DERIVATION.md`, `AIE_CONV_ALGORITHM.md`, `T41_CONV_EXECUTOR_PROGRAM.md`,
-`T41_GENERIC_CONV2D_DESIGN.md`, `T41_CONV_LAYER_STRUCT.md`) are the working notes this manual consolidates;
-where they disagree with this manual, this manual is current.
-## Appendix B — Vendor executor map
-
-The NNA does not know which procedure drives it, so this appendix documents how the vendor library
-(`libvenus`) organises its own code; it is not a constraint on new software. It serves two purposes:
-locating the vendor code behind a recipe in [Chapter 11](#11-the-recipes), and predicting which vendor
-procedure a given layer geometry takes when comparing against vendor output. It is the one place in this
-manual where vendor function addresses (`FUN_xxxxxxxx`) appear.
-
-### B.1 Executors and the recipes derived from them
-
-`libvenus` has some sixty convolution executors and picks one by geometry and dtype: the kernel setup
-`FUN_001b8624` tries planner candidates in a fixed order (B.2), each of which either plans and runs the
-layer or refuses it with an error code. Any executor whose guards a layer passes computes the same result.
-Seven executors are exercised by a YOLOX-S network; the table lists those seven, plus the never-reached
-`D = 1` member of the 3×3 family, together with the recipe in Chapter 11 that each corresponds to.
-
-The 4-bit 3×3 executor's entry guard rejects every 4-bit-input tensor whose weights exceed ORAM, so such a
-layer (layer 34 of YOLOX-S) runs on the im2col executor `FUN_0039b9d0`; the two executors compute the same
-convolution, and the streaming form of the 3×3 recipe gives the same output.
-
-| vendor executor (`libvenus.so`) | geometry it serves | YOLOX-S layers | recipe |
-|---|---|---|---|
-| `FUN_0026e540` (`.m` build `FUN_00104cd0`), the `base_i4` 3×3 core | 3×3 pad 1, stride 1 or 2, `Cin ≥ 64`, `Dout ≤ 64`, 4- or 8-bit weights and output, one or several weight passes | 27 | [3×3, 4-bit operands](#112-33-4-bit-operands) |
-| `FUN_0039b9d0`, the im2col executor | as above with weights larger than ORAM, the weight blob streamed per pass | 1 (layer 34) | [large weights](#118-large-weights-and-channel-concatenation) |
-| `FUN_003ac1bc`, the `base_i4` 1×1 executor | 1×1, `2 ≤ Cin/32 ≤ 32`, 4-bit input; also its 8-bit-input arm | 40 + 2 (layers 2, 6) | [1×1, 4-bit operands](#111-11-4-bit-operands); [8-bit variants](#115-8-bit-input-variants) |
-| `FUN_002bf4b8` and its 1×1 sibling `FUN_002d06b0`, the single-input-group executors | `Cin ≤ 32`, 1×1 or 3×3, stride 1 or 2 | 3 (layers 1, 3, 4) | [row quad](#113-single-input-group-row-quad) |
-| `FUN_00270df0`, the `D = 1` member of the 3×3 family (never reached on the camera) | `Cin ≤ 32`, 3×3 | (layer 1, alternative) | [two slot](#114-single-input-group-two-slot) |
-| `FUN_003a50e0`, the `base_i8of` head executor | 1×1, 8-bit input and weights, fp32 NHWC output with the real channel count | 9 heads | [floating-point heads](#117-floating-point-output-heads) |
-| `FUN_00369db4`, `first_layer_i8` | 3-channel 8-bit image, 3×3 stride 2, the window built on the MXU | 1 (layer 0) | [the RGB image layer](#116-the-rgb-image-layer) |
-
-Two more executors are characterised but have no recipe of their own: `FUN_001c6750`, the int8 `Cin = 4`
-pointwise specialist, whose shuffle feed is the image layer's; and `FUN_001f4f60`, the general `Cin ≥ 32`
-int8 1×1 executor of the MobileNet path, whose configuration, weight stream and readout are understood
-statically and are the source of B.3.
-
----
-
-### B.2 Dispatch
-
-The kernel setup tries planner candidates in a fixed order and stops at the first that returns success. Its
-choice of candidate sequence is made on the **first input tensor's `D`**: when that is 1 it tries
-`FUN_002d06b0`, then `FUN_002bf4b8`, then `FUN_0039b9d0`; otherwise `FUN_003ac1bc` (the 1×1 executor) first,
-then `FUN_0039b9d0`, `FUN_0019e890` (the 3×3 planner) and `FUN_00243920`.
-
-`FUN_0019e890` is both the 3×3 planner and the dispatcher for that family. It checks the operator
-(`K ∈ {1,3}`, equal strides ≤ 2, pads ≤ 1, `Dout ≤ 64`), allocates ORAM, writes the descriptor chains, then
-tries executors from a table:
-
-| `K = 3` | First choice | Fallback |
-|---|---|---|
-| `D ≥ 2, Dout ≥ 2` | `FUN_0026e540` | `FUN_00263cc0` |
-| `D ≥ 2, Dout = 1` | `FUN_00276500` | `FUN_00269340` |
-| `D = 1, Dout ≥ 2` | `FUN_00270df0` | `FUN_00266a40` |
-| `D = 1, Dout = 1` | `FUN_002788e0` | `FUN_0026bea0` |
-
-The stride is not part of the choice. `FUN_00243920` is not a candidate for any 4-bit-input layer: its entry
-guard requires an 8-bit input tensor.
-
-The `D = 1` executors classify a layer by output width against its per-tile work and accept only one class,
-so several 4-bit-output single-input-group layers are refused by both candidates of their row and fall
-through to `FUN_002d06b0` and `FUN_002bf4b8`. A further CPU-side check on a scratch-pool size can reject a
-layer after configuration has already been written; that is why some executors appear in a trace for a few
-instructions and then exit.
-
-### B.3 Byte-count formulas of the general int8 executor
-
-Read from the code of `FUN_001f4f60` (M). The formulas of the 4-bit recipes are in
-[Chapter 11](#11-the-recipes).
-
-| Quantity | Formula |
-|---|---|
-| Feature bytes per descriptor | `round64(Win · Cin) + 64`, the `+64` being the convolution-window halo |
-| Feature row stride | `round64(Cin · 32)` |
-| Output tile bytes | `round64(Cout · 32)`, `Cout` padded to 32 |
-| Weight super-tile | 1,024 (int8 32 × 32) or 768 (dtype code 8) |
-| Requantization table | 256 per commit |
-| Output-pixel MAC count | `ceil(Hout · Wout / 8)` |
-| Feature rows per pass | `min(5, rows that fit in ORAM)` — hard cap 5 |
-
-### B.4 The ConvOp descriptor
-
-A convolution is described to an executor by a **ConvOp** object. The two executor families read partly
-different structures: the first table is the general `Cin ≥ 32` int8 executor's view (offsets verified in
-two sibling executors unless noted); the second lists the fields the 4-bit executors read.
-
-| offset | field |
-|--------|-------|
-| `+0xc8` | activation-mode selector (`== 2` is special) |
-| `+0xe8` | weight-arena pointer (must be non-null, else the executor bails) |
-| `+0xec` | **requant left-shift** (byte); if `0xff`, defaults to 2 when `+0xc8 == 2`, else 5 |
-| `+0xf0` | **ReLU/floor selector** (u16); `!= 0xffff` → floor 0 (ReLU); `== 0xffff` → floor −FLT_MAX (no ReLU) |
-| `+0xf8` | mode word (low 3 bits checked) |
-| `+0x118` | **kernel-size vector** (both elements must be 1 — this executor is 1×1 only) |
-| `+0x124` | **stride vector** (each ≤ 2): `[0]` = column stride, `[1]` = row stride |
-| `+0x15c` | split/group divisor |
-| `+0x160` | row-pointer-array rebase |
-| `+0x174` | stride assert (`{1}` or 4–5) in this executor; the 4-bit executors read it as the activation kind (`(x−2) <u 2` → `B.05` bit 3; `0xd` → float constants for the MXU requant path, [1×1 recipe](#111-11-4-bit-operands)) |
-| `+0x17c` | mode word (low 3 bits must be 0) |
-
-Fields the 4-bit executors read ([Chapter 11](#11-the-recipes); `FUN_001b8624` copies them from the layer
-object):
-
-| offset | field |
-|--------|-------|
-| `+0x80` | precision selector: 2 → `A.08 = B.06 = 2` (else 3); must not be 1 |
-| `+0x9c` | input zero-point / pad value → `A.0f` (masked to the input width) |
-| `+0xa0` | pointer to the CPU-side scratch pool (word 0 = its size in KB); the planners carve their kick tables from it ([single input group](#113-single-input-group-row-quad)) |
-| `+0xa4` | requant-mode code (u16; `& 0xff`): 2 → `B.03 = 0`, 6 → 1, 0xb → 2 |
-| `+0xa8` | zero-point byte (masked to the input width): the 3×3 planner requires it 0; the 1×1 and single-input-group store leaves use it as the clamp floor (`vr29`), 0 on every YOLOX-S layer |
-| `+0xb0` | `& 7` = mode: 2 = hardware requant with the table in unit B (every YOLOX-S layer), 1 = MXU requant, 3 = the float/zero-point path |
-| `+0xc0` | group-split flag (0 on YOLOX-S) |
-| `+0xdc` | pointer to an optional image-preprocessing record (`FUN_00369db4`: flags word, then per-channel float mean at `+0x24..` and scale at `+0x28..0x30`, from which the pad byte per channel is quantized and clamped to 0..255); 0 on layer 0, so the default `0x80` triple is used and that loop is skipped |
-| `+0xe0`, `+0xe4` | first input row, input rows (`A.0c = +0xe4 − +0xe0 − 1`) |
-| `+0x104` | `Cout` |
-| `+0x10c` | pad vector `[top, bottom, left, right]` |
-| `+0x118` / `+0x124` / `+0x130` | kernel `[w, h]`, strides `[col, row]` (bytes read), dilation `[w, h]` |
-| `+0x174` | activation kind (−1, 0, 1, 4, 5 are the plain int paths; 0xd → float constants; [1×1 recipe](#111-11-4-bit-operands)) |
-| `+0x180` | 0 on YOLOX-S (a flag the `D = 1` paths test) |
-
-The four geometry members at `+0x10c`, `+0x118`, `+0x124` and `+0x130` are **`std::vector<int>`**, not
-inline arrays: they sit exactly twelve bytes apart — the libstdc++ `{begin, end, end_of_storage}` triple —
-and the code dereferences them as such, e.g. `*(*(op + 0x124) + 4)` for the row stride. An inline-array
-reading would have `+0x10c`'s four elements overlapping `+0x118`.
-
-Tensor lists hang off the op's argument. The **shape struct** of a tensor is `+0x00 N, +0x04 D (channel
-groups), +0x08 H, +0x0c W`; the 3×3 executor's `A.0c = *(+8) − 1`, `A.0e = *(+0xc) − 1` are taken from
-the **input** tensor's shape ([Chapter 13](#13-configuration-fields)). On stride-1 layers the input and
-output sizes coincide, so those layers cannot distinguish the two readings.
-
-An **operand/quant bundle** hangs off the op too, carrying the DDR base pointers and strides for the
-weight, bias and requant-table DMAs (`+0x20`/`+0x38` and `+0x4c`/`+0x64` are the two base/stride pairs
-that feed the weight+bias descriptor; `+0x40` and `+0x6c` are dtype enums). Not characterised: which of
-the two pairs is the weight and which the bias. What is established: both feed the weight+bias descriptor.
-The `Cin = 4` executor's structure additionally exposes the activation zero-points at `+0x184..0x188`
-(five zero-point bytes; `+0x184` is the signed input zero-point used in the `acc − in_zp·wsum` correction).
-
----
-
-### B.5 Vendor program tables
-
-The program each vendor executor pushes, by executor address in the `.m` build (`push` = `nnrwr B.19`,
-`LEN` = `nnrwr B.1a`; the program-table format is in [Chapter 14](#14-the-program-table)). Single-slot
-programs:
-
-| executor(s) | pushes | LEN |
-|---|---|---|
-| `000e14e0`, `00209990` | `0x800, 0x801` | 2 |
-| `000e38b0 000ea380 00143aa0 0017b6b0 00186ad0 0018f5c0 00197b20 001da490 001e2b10 001eba30 001ed660 00225800 002287a0` | `0x801` | 1 |
-| `001fb150 00204b60` / `001fdb90` | `0x806` / `0x804` | 1 |
-| `001119c0` | `0x803 0x803 0x803 0x80f` | 4 |
-| `00115040` | `0x803 ×4, 0x800, 0x812` | 6 |
-| `00129570` / `0012ecc0` | `0x806 ×3, 0x81e` / `0x803 ×3, 0x827` | 4 |
-| `0012c330` / `00133640` | `0x805 ×4, 0x800, 0x81e` / `0x805 ×4, 0x800, 0x850` | 6 |
-| `001f8a30` | `0x804 ×5, 0x81c` | 6 |
-| `00221620` (slot 0) | `0x806 ×4, 0x800, 0xbe9` | 6 |
-| `00109900` | `0x1805 0xbd3 0x2805 0x806` | 4 |
-| the single-input-group executors ([row quad](#113-single-input-group-row-quad), [two slot](#114-single-input-group-two-slot)) | `0x805 0x814 0x805 0xbe3` (1×1) / `0x2805 0x2005 0xbd4` (3×3 stride 2) / `0x1805 0x80a 0x1805 0xbd9` (3×3 stride 1) | 4 / 3 / 4 |
-| `00142630` | `0x800 0x800` | 2 |
-| `00149350 001a3270` / `001c6750` / `0016d020` | `0x807 0xbfb` / `0x802 0x80e` / `0x802, f(bits)` | 2 |
-| `001f4f60 001ef2c0` | `0x801, 0x800 \| ((2·D−1)·(S>>2) & 0x3ff)` (= `0x807` int8) | 2 |
-| `0020b5f0 00210c50` / `0020c960` / `00212450` | `0x801 0xbff` / `0x804 0xbfd` / `0x801 0x81f` | 2 |
-| `00217300` / `0021a3e0` | `0x800, f(bits)` / `f(shape)` | 2 / 1 |
-
-Two-slot programs (`B.18 ← 8` between the halves): `000fa5c0 000ffbe0 00104cd0 0010ca90` (the 4-bit
-3×3 family: two 4-word programs, `0x7b01 0x1805 0x819 0x3b1` in both slots at stride 1,
-`0x7b01 0x2006 0x824 0x38a` at stride 2 with two groups per unit, [3×3 recipe](#112-33-4-bit-operands)),
-`000fd2d0 001026f0 001074f0 0010ee40` (3 + 3), and the camera build's 4-bit executor.
-
-The `D = 1` member of the 3×3 family (`FUN_00270df0`) loads the same two entries into both slots
-(`B.1a = 0x22`; for example `0x2006 0x0bea` at walk 5, stride 2) — the form of
-[§11.4](#114-single-input-group-two-slot).
-
-### B.6 Planner guards of the single-input-group 3×3 executor
-
-The vendor executor behind [§11.4](#114-single-input-group-two-slot) accepts a layer only when all of the
-following hold. The symbols are the planner's own: `p2` is the second descriptor record, `walk` the input
-rows one row pair consumes, `Kwalk` the kernel size times the walk depth, and `class` the executor class code.
-
-| Guard | Meaning |
-|---|---|
-| `class = 1` | the 4-bit, `D = 1` class only |
-| strides equal and ≤ 2; `Hout` even at stride 2 | |
-| `walk + p2[0x54] < 0x1e` | walk depth plus the record's row allowance below 30 |
-| `Kwalk · 2 · in_bits/2 · 8 < 0x8001` | one group's walk fits 32 KB of operand |
-| `2 · Dout ≥ class` | |
-| `Kwalk < 0x1fd` | |
-| record 1 `+0x5c` = `+0x60` = 0 | |
-| `Hout % 4 == 0` | a whole number of row quads |
-| `Dout · 9 · w_bits < 0x242` | the `D = 1` size gate |
-| `Dout · tap_slots ≤ 0x120`, `tap_slots = 9 · w_bits / 2` | a single weight pass (36 slots per output group at 8-bit) |
-
-Record 1 `+0x2c` is the constant 1, not a stride. A layer failing the pool check after these guards is
-rejected with error 8.
 ## Appendix C — Not characterised
 
 Every statement in the body marked **Not characterised** is collected here, in document order. The first
@@ -4020,277 +3800,3 @@ different source registers.
 The port and bank constants behind these forms: WEIGHT0…WEIGHT3 = `0x00 / 0x02 / 0x04 / 0x07`, ACT_A = `0x20`,
 ACT_B = `0x21`, TABLE = `0x40`; drain bank 1 (the packed output FIFO, always read with row 0) = `0x20`, drain
 bank 0 (raw int32 accumulators) = row number `R` with no bank bits, so its immediate is `R` itself.
-## Appendix E — Complete example listing
-
-The listing below is the complete program described in [Chapter 8](#8-worked-example): the single-pass,
-whole-input case of the 1×1 recipe ([§11.1](#111-11-4-bit-operands)) for a 64→128-channel, 12×20, 4-bit
-layer, written against the companion implementation ([Chapter 16](#16-runtime-api)). All four output
-groups are resident at once and the input fits in ORAM, so there is no pass loop and no input ring.
-
-```c
-#include "device.h"
-#include "nna/nna.h"        /* operations: reset, arm, feeds, MAC, commit, drain  */
-#include "nna/nna_regs.h"   /* field, port, command and program names             */
-#include "nna/nndma.h"      /* descriptors, kicks, waits                          */
-
-#define CIN            64
-#define COUT           128
-#define H              12                       /* output rows; stride 1, so also input rows       */
-#define W              20                       /* output columns                                  */
-#define IN_BITS        4
-#define D              (CIN / 32)               /* input channel groups                    -> 2    */
-#define DOUT           (COUT / 32)              /* output channel groups                   -> 4    */
-#define GROUPS_A       (D / 2)                  /* input groups fed to unit A              -> 1    */
-#define GROUPS_B       (D - GROUPS_A)           /* ... and to unit B                       -> 1    */
-#define ROW_BYTES      (W * 32 * IN_BITS / 8)   /* one input plane row                     -> 320  */
-#define OUT_RB         YX_ROUND_UP_64(W * 32 * 4 / 8)   /* DDR output row                  -> 320  */
-#define STG_RB         OUT_RB                   /* ORAM staging row (W is a multiple of 4)         */
-#define COLUMN_BLOCKS  (W / 4)                  /* four pixels per tile                    -> 5    */
-#define ROW_PAIRS      (H / 2)                  /* two rows per tile                       -> 6    */
-
-/* ORAM plan: the whole input, the weights, the output staging, the requantization table. */
-#define O_IN     0x0000u
-#define O_W      (O_IN  + D * H * ROW_BYTES)
-#define O_STG    (O_W   + DOUT * D * 512u)
-#define O_TBL    (O_STG + 2u * DOUT * 2u * STG_RB)
-
-/* DESRAM: table, weights, one descriptor per input plane, then one output chain per row pair. */
-#define DESC_TABLE     0u
-#define DESC_WEIGHTS   1u
-#define DESC_INPUT     2u
-#define DESC_OUTPUT    (DESC_INPUT + D)
-
-static void configure(void)
-{
-    static const uint16_t program[2] =                  /* one input group per unit: step, then rewind  */
-    {
-        NNA_PROG_STEP(1),
-        NNA_PROG_STEP(IN_BITS - 1 - IN_BITS * GROUPS_A)
-    };
-    nna_layer_config_t config;
-    static nna_config_t record;                         /* static: see the note after this listing */
-    uint32_t clamp_word[8];
-    int lane;
-
-    nna_reset();                                        /* nnrwr B.1b,0 ; nncmd 0x00 */
-
-    /* vr29 is the per-nibble output clamp the store applies after every drain -- zero on this layer. It is
-     * MXU state, not array state: the array reads only vr31. */
-    for (lane = 0; lane < 8; lane++)
-    {
-        clamp_word[lane] = 0u;
-    }
-    MXU3_BROADCAST_WORD(NNA_VR29, clamp_word);
-
-    /* Describe the layer. Every member left unset keeps its reset value and emits no write at all. */
-    nna_config_init(&config);
-    config.in_h              = H;                       /* the input HEIGHT ... */
-    config.in_w              = W;                       /* ... and the width, separately */
-    config.in_elem_class     = nna_in_elem_class(IN_BITS);
-    config.mode_code         = 2;
-    config.row_origin        = 0;                       /* no padding: the walk starts at (0, 0) */
-    config.col_origin        = 0;
-    config.mac_span          = 8;                       /* constants of the recipe, not of the layer */
-    config.mac_pitch         = 4;
-    config.edge_mode         = 0x12;
-    config.operand_precision = nna_operand_precision(4, IN_BITS);
-    config.groups_unit_a     = GROUPS_A;
-    config.groups_unit_b     = GROUPS_B;
-    config.tap_mask          = nna_tap_mask(1);         /* a 1x1 kernel has one tap */
-    config.pack_format       = 0;
-    config.out_elem_class    = nna_out_elem_class(4);
-    config.mode_flags        = 2;
-    config.tile_class        = nna_tile_class(IN_BITS);
-    config.mac_balance       = 0;
-    config.parity_tag        = D & 1;
-    nna_config_apply(&config);
-
-    /* Both units carry one input group, so both slots get the same two-entry walk. Two or more groups per
-     * unit need the five-entry form of §11.1.4. */
-    nna_program_load(program, 2, program, 2);
-
-    nna_arm();
-
-    /*
-     * The word file the tile loop lives on. It is installed AFTER the configuration, which owns all
-     * sixteen words while it runs and leaves them zero: w1 is the zero every per-tile field write reads,
-     * w4 and w5 are the operands the two MACs name, and w2 and w3 feed the two unit start offsets, which
-     * this recipe writes after the arm.
-     */
-    nna_config_clear(&record);
-    record.word[NNA_W1] = 0u;
-    record.word[NNA_W2] = 0u;
-    record.word[NNA_W3] = 2 + IN_BITS * GROUPS_A;
-    record.word[NNA_W4] = 0u;
-    record.word[NNA_W5] = 4 * IN_BITS * GROUPS_A + 8;
-    nna_config_stage(&record);
-
-    NNA_WRITE_FIELD(NNA_UNIT_A_START, NNA_W2);
-    NNA_WRITE_FIELD(NNA_UNIT_B_START, NNA_W3);
-}
-
-/** One tile's activation windows: one 64-byte pair per input plane, in plane order. */
-static void feed_unit_a(const uint8_t* row0, const uint8_t* row1)
-{
-    int plane;
-
-    for (plane = 0; plane < GROUPS_A; plane++)
-    {
-        uint32_t offset = (uint32_t)plane * H * ROW_BYTES;
-
-        nna_feed_window_pair_unit_a(row0 + offset, row1 + offset);
-    }
-}
-
-static void feed_unit_b(const uint8_t* row0, const uint8_t* row1)
-{
-    int plane;
-
-    for (plane = GROUPS_A; plane < D; plane++)
-    {
-        uint32_t offset = (uint32_t)plane * H * ROW_BYTES;
-
-        nna_feed_window_pair_unit_b(row0 + offset, row1 + offset);
-    }
-}
-
-/**
- * Drain one committed tile into the staging area. Because the packed FIFO trails the write point by one
- * tile, the caller always passes the coordinates of the tile committed one step earlier.
- */
-static void store_tile(yx_dev* dev, int parity, int group, int column_block)
-{
-    uint8_t* dst = (uint8_t*)dev->oram + O_STG
-                 + (uint32_t)parity * (DOUT * 2u * STG_RB)
-                 + (uint32_t)group * (2u * STG_RB)
-                 + (uint32_t)column_block * 64u;
-
-    NNA_DRAIN_PACKED(NNA_VR10);                     /* output row 0 of the tile */
-    NNA_DRAIN_PACKED(NNA_VR11);                     /* output row 1            */
-    MXU3_CLAMP_NIBBLE(NNA_VR10, NNA_VR29);
-    MXU3_CLAMP_NIBBLE(NNA_VR11, NNA_VR29);
-    NNA_VST64(NNA_VR10, dst);
-    NNA_VST64(NNA_VR11, dst + STG_RB);
-}
-
-int run_layer(yx_dev* dev, const yx_conv_bufs* buf)
-{
-    const uint8_t* oram = (const uint8_t*)dev->oram;
-    int row_pair;
-    int column_block;
-    int group;
-    int plane;
-    int row;
-    uint32_t descriptor;
-
-    /* Chain 0: the requantization table, then the weights. */
-    nndma_descriptor(dev, DESC_TABLE, YX_NMEM_PHYS + buf->tbl_off, O_TBL, DOUT * 256u, 1);
-    nndma_descriptor(dev, DESC_WEIGHTS, YX_NMEM_PHYS + buf->w_off, O_W, DOUT * D * 512u, 0);
-    nndma_kick_read0(dev, DESC_TABLE);
-
-    /* Feature chain: one descriptor per input plane, the whole image. */
-    for (plane = 0; plane < D; plane++)
-    {
-        nndma_descriptor(dev, DESC_INPUT + plane,
-                         YX_NMEM_PHYS + buf->in_off + (uint32_t)plane * H * ROW_BYTES,
-                         O_IN + (uint32_t)plane * H * ROW_BYTES,
-                         H * ROW_BYTES, plane != D - 1);
-    }
-    nndma_kick_read1(dev, DESC_INPUT);
-
-    /* Output chains: per row pair, one descriptor per output group per row, staging -> DDR. */
-    descriptor = DESC_OUTPUT;
-    for (row_pair = 0; row_pair < ROW_PAIRS; row_pair++)
-    {
-        for (group = 0; group < DOUT; group++)
-        {
-            for (row = 0; row < 2; row++, descriptor++)
-            {
-                int last = (group == DOUT - 1) && (row == 1);
-
-                nndma_descriptor(dev, descriptor,
-                                 YX_NMEM_PHYS + buf->out_off
-                                     + (uint32_t)group * H * OUT_RB
-                                     + (uint32_t)(2 * row_pair + row) * OUT_RB,
-                                 O_STG + (uint32_t)(row_pair % 2) * (DOUT * 2u * STG_RB)
-                                     + (uint32_t)group * (2u * STG_RB)
-                                     + (uint32_t)row * STG_RB,
-                                 OUT_RB, !last);
-            }
-        }
-    }
-
-    configure();
-
-    nndma_wait_read0(dev);                              /* weights and table have landed */
-    NNA_WRITE_FIELD(NNA_WEIGHT_STREAM_OFF, NNA_W1);     /* w1 = 0: start of the weight bank */
-    for (group = 0; group < D * DOUT * 2; group++)      /* 256 B per push round, four ports */
-    {
-        nna_push_weight_slice(oram + O_W + (uint32_t)group * 256u);
-    }
-    NNA_WRITE_FIELD(NNA_TABLE_OFF,         NNA_W1);
-    for (group = 0; group < DOUT * 2; group++)          /* 128 B per push round */
-    {
-        nna_push_requant_half(oram + O_TBL + (uint32_t)group * 128u);
-    }
-
-    nndma_wait_read1(dev);                              /* the input image has landed */
-
-    for (row_pair = 0; row_pair < ROW_PAIRS; row_pair++)
-    {
-        const uint8_t* row0 = oram + O_IN + 2u * (uint32_t)row_pair * ROW_BYTES;
-        const uint8_t* row1 = row0 + ROW_BYTES;
-        int parity = row_pair % 2;
-
-        for (column_block = 0; column_block < COLUMN_BLOCKS; column_block++)
-        {
-            uint32_t column = (uint32_t)column_block * 64u;     /* 4 px x 32 ch x 4 bit */
-
-            /* The previous block's last commit straddles this block's unit-A feed. */
-            if (column_block > 0)
-            {
-                nna_precommit();                        /* nncmd 0x84 */
-            }
-            feed_unit_a(row0 + column, row1 + column);
-            if (column_block > 0)
-            {
-                nna_commit_packed();                    /* nncmd 0x8b */
-            }
-
-            NNA_WRITE_FIELD(NNA_MAC_BASE_A1, NNA_W1);   /* the per-tile address tags, both 0 */
-            NNA_WRITE_FIELD(NNA_MAC_BASE_A0, NNA_W1);
-            NNA_RUN_MAC(NNA_W4, 1);                     /* nnmac vw4,1 -- unit A */
-
-            feed_unit_b(row0 + column, row1 + column);
-            NNA_RUN_MAC(NNA_W5, 3);                     /* nnmac vw5,3 -- unit B */
-
-            /* The commit above published the previous block's last group. */
-            if (column_block > 0)
-            {
-                store_tile(dev, parity, DOUT - 1, column_block - 1);
-            }
-            NNA_WRITE_FIELD(NNA_COMMIT_WINDOW, NNA_W1);
-
-            /* The remaining output groups reuse the activation window already in the array. */
-            for (group = 1; group < DOUT; group++)
-            {
-                nna_precommit();
-                nna_commit_packed();
-                NNA_RUN_MAC(NNA_W4, 1);
-                NNA_RUN_MAC(NNA_W5, 3);
-                store_tile(dev, parity, group - 1, column_block);
-            }
-        }
-
-        /* Tail of the row pair: commit the last tile, drain it, and write the pair back. */
-        nna_precommit();
-        nna_commit_packed();
-        nndma_wait_write(dev);
-        store_tile(dev, parity, DOUT - 1, COLUMN_BLOCKS - 1);
-        nndma_kick_write(dev, DESC_OUTPUT + (uint32_t)row_pair * 2u * DOUT);
-    }
-
-    nndma_wait_write(dev);
-    return 0;
-}
-```

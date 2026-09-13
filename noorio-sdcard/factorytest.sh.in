@@ -1,0 +1,135 @@
+#!/bin/sh
+# Stock Noorio/Closeli T41  ->  headless SSH dev camera.
+#
+# Runs ONCE as root from the SD factory-test hook (/etc/init.d/rcS runs
+# /mnt/sdcard/factorytest/factorytest.sh at boot).  It makes PERSISTENT changes
+# to the writable /etc (jffs2, mtdblock4) so that after you pull the card the
+# camera boots straight to a shell with SSH on wifi -- no card, no serial, no
+# vendor app.  Everything is logged to the SD card too, because on a camera with
+# no serial the card is the only thing you can read afterwards.
+#
+# It is idempotent (safe to run again) and backs up everything it touches to
+# $SD/pluto_backup/ before changing it.  Assumes a STOCK device.
+#
+# --- filled in by sdcard/make_card.py; do not edit by hand -------------------
+HOSTNAME="@@HOSTNAME@@"
+# wifi: precomputed so the device needs no tools.
+#   ssid_hex = hex(ssid); psk_hex = PBKDF2-SHA1(psk, ssid, 4096, 32)
+WIFI_SSID_HEX=@@WIFI_SSID_HEX@@
+WIFI_PSK_HEX=@@WIFI_PSK_HEX@@
+# root password as MD5-crypt
+ROOT_HASH='@@ROOT_HASH@@'
+# ----------------------------------------------------------------------------
+
+SD=/mnt/sdcard
+HERE="$SD/factorytest"
+LOG="$SD/pluto_setup.log"
+BK="$SD/pluto_backup"
+MARK="# PLUTO_SSH"                       # idempotency marker in rcS
+
+log() { echo "$@"; echo "$@" >> "$LOG"; }
+
+: > "$LOG" 2>/dev/null
+log "==== pluto setup $(date 2>/dev/null) ; id=$(id 2>&1) ===="
+mkdir -p "$BK" 2>/dev/null
+
+# --- 0. safety backup of everything we touch --------------------------------
+cp /etc/shadow            "$BK/shadow.orig"        2>/dev/null
+cp /etc/init.d/rcS        "$BK/rcS.orig"           2>/dev/null
+cp -r /etc/conf           "$BK/conf.orig"          2>/dev/null
+log "backed up shadow, rcS, /etc/conf -> $BK"
+
+# --- 1. root password = admin (rewrite only the root line) ------------------
+if [ -f /etc/shadow ]; then
+    awk -F: -v h="$ROOT_HASH" 'BEGIN{OFS=":"}
+        $1=="root"{$2=h} {print}' /etc/shadow > /tmp/shadow.$$ &&
+        cat /tmp/shadow.$$ > /etc/shadow && rm -f /tmp/shadow.$$
+    log "root password set to admin"
+else
+    printf 'root:%s:0:0:99999:7:::\n' "$ROOT_HASH" > /etc/shadow
+    log "shadow was missing; created with root=admin"
+fi
+
+# --- 2. wifi ----------------------------------------------------------------
+mkdir -p /etc/conf 2>/dev/null
+cat > /etc/conf/wpa.conf <<EOF
+ctrl_interface=/var/run/wpa_supplicant
+update_config=1
+network={
+  ssid=$WIFI_SSID_HEX
+  scan_ssid=1
+  psk=$WIFI_PSK_HEX
+  proto=WPA2
+  key_mgmt=WPA-PSK
+  pairwise=CCMP TKIP
+  group=CCMP TKIP
+  priority=5
+}
+EOF
+cp /etc/conf/wpa.conf /etc/conf/wpa_bak.conf 2>/dev/null
+log "wrote /etc/conf/wpa.conf"
+
+# --- 3. install dropbear into the writable /etc -----------------------------
+mkdir -p /etc/dropbear 2>/dev/null
+if [ -x "$HERE/dropbear" ]; then
+    cat "$HERE/dropbear" > /etc/dropbear/dropbear && chmod 755 /etc/dropbear/dropbear
+    log "installed /etc/dropbear/dropbear ($(wc -c < /etc/dropbear/dropbear) bytes)"
+else
+    log "!! $HERE/dropbear missing -- SSH will not be installed"
+fi
+
+# --- 4. hostname ------------------------------------------------------------
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME" 2>/dev/null
+log "hostname = $HOSTNAME"
+
+# --- 5. persist across reboots: edit /etc/init.d/rcS ------------------------
+# Skip the vendor app and start dropbear, on every card-less boot.  Guarded by
+# MARK so re-running never edits twice; the LeCam launch is commented, not
+# deleted, so it is easy to reverse.
+if grep -q "$MARK" /etc/init.d/rcS 2>/dev/null; then
+    log "rcS already patched (marker present) -- leaving as is"
+else
+    # Single awk, exact-substring match on the known vendor-app launcher line.
+    # Inserts our startup and comments the launcher; idempotent via the marker;
+    # busybox-awk safe (no GNU-only constructs).
+    awk '
+        index($0,"/opt/lecam/system_call_daemon") && $0 !~ /PLUTO_SSH/ && !done {
+            print "hostname -F /etc/hostname 2>/dev/null   # PLUTO_SSH"
+            print "[ -x /etc/dropbear/dropbear ] && /etc/dropbear/dropbear -R -p 22 &   # PLUTO_SSH"
+            print "#" $0 "   # PLUTO_SSH was: vendor app"
+            done=1
+            next
+        }
+        {print}
+    ' /etc/init.d/rcS > /tmp/rcS.new.$$
+    if sh -n /tmp/rcS.new.$$ 2>/dev/null && grep -q "PLUTO_SSH" /tmp/rcS.new.$$; then
+        cat /tmp/rcS.new.$$ > /etc/init.d/rcS && chmod 755 /etc/init.d/rcS
+        log "patched /etc/init.d/rcS (LeCam disabled, dropbear enabled on boot)"
+    else
+        log "!! rcS patch failed sanity check -- ORIGINAL rcS left untouched"
+    fi
+    rm -f /tmp/rcS.new.$$
+fi
+
+# --- 6. bring it up NOW, so you can SSH in on this very boot -----------------
+# reassociate wifi to the new network
+killall udhcpc wpa_supplicant 2>/dev/null
+sleep 1
+wpa_supplicant -B -i wlan0 -Dnl80211 -c /etc/conf/wpa.conf 2>>"$LOG"
+sleep 5
+# -b: keep running/renew; -x hostname: so the router shows a friendly name
+udhcpc -i wlan0 -b -x "hostname:$HOSTNAME" 2>>"$LOG"
+# start sshd now
+[ -x /etc/dropbear/dropbear ] && /etc/dropbear/dropbear -R -p 22 && log "dropbear started on :22"
+
+# --- 7. report the address (serial is dead; this + the log are how you find it)
+i=0
+while [ $i -lt 40 ]; do
+    IP=`ifconfig wlan0 2>/dev/null | sed -n 's/.*inet addr:\([0-9.]*\).*/\1/p'`
+    [ -n "$IP" ] && { log "==== wlan0 = $IP  ->  ssh root@$IP  (pw admin) ===="; break; }
+    i=$((i+1)); sleep 1
+done
+[ -z "$IP" ] && log "==== no IP yet; it will associate on next boot ===="
+sync
+log "==== pluto setup done -- pull the card and reboot ===="

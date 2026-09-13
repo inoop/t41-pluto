@@ -18,11 +18,6 @@ operator capability envelope, not the hardware. Everything in this manual was es
 vendor inference library (`libvenus.m.so`) and by measurement on the device. [Appendix A](#appendix-a--sources)
 records the sources; [Appendix C](#appendix-c--not-characterised) lists what has not been established.
 
-**Validation.** All 83 convolutions of a production YOLOX-S network run on the accelerator from code written
-against this manual, producing output byte-identical to the vendor library, using the model file's weights
-and requantization tables unmodified. The complete 95-layer network runs end to end with identical layer
-checksums and identical floating-point outputs.
-
 ### How to read this manual
 
 The manual is organised so that each part depends only on the parts before it.

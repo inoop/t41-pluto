@@ -8,7 +8,7 @@ The really interesting piece however, is the neural network accelerator (NNA), w
 
 Unfortunately we don't have access to any kind of low-level documentation that tells us how to use this device or even how it works. If we could figure out how to drive this accelerator, we could turn these cameras into low-cost CV AI development boards for fun and profit.
 
-This repo is a product of a multi-week effort to reverse engineer the NNA hardware with the goal of running our own models on this camera. The majority of the work was carried out using Claude, [Ghidra MCP](https://github.com/bethington/ghidra-mcp), and a lot of late-night prompting. The vendor ships a proprietary SDK with an ONNX compiler ('Magik') and runtime library ('venus'), the latter of which was the primary source of the analysis.
+This repo is a product of a multi-week effort to reverse engineer the NNA hardware with the goal of running our own models on these cameras. The majority of the work was carried out using Claude, [Ghidra MCP](https://github.com/bethington/ghidra-mcp), and a lot of late-night prompting. The vendor ships a proprietary SDK with an ONNX compiler ('Magik') and runtime library ('venus'), the latter of which was the primary source of the analysis.
 
 This has produced the following:
 
@@ -45,10 +45,12 @@ Here are some performance numbers for a small selection of pre-trained models th
 Pluto's compiler is a Python module run from the repository root. It takes an int8-quantized ONNX file and writes a .pluto file for the camera:
 
 ```
-python3 -m compile.cli model_int8.onnx -o model.pluto
+python3 -m compile.cli fixtures/mobilenetv1_int8.onnx -o ./mobilenetv1.pluto
 ```
 
-The input *must* be statically quantized QDQ ONNX. The compiler doesn't quantize; it reads scales and zero points already in the graph. A float model is rejected. So are "int8" downloads that use dynamic quantization or QOperator nodes (QLinearConv). The expected form is per-channel symmetric int8 weights and per-tensor int8 activations, each tensor wrapped in QuantizeLinear/DequantizeLinear pairs, with a calibrated range on every activation. That is what ONNX Runtime's static quantizer produces:
+## Quantization
+
+The compiler input *must* be statically quantized QDQ ONNX. The compiler doesn't quantize; it reads scales and zero points already in the graph. A float model is rejected. So are "int8" downloads that use dynamic quantization or QOperator nodes (QLinearConv). The expected form is per-channel symmetric int8 weights and per-tensor int8 activations, each tensor wrapped in QuantizeLinear/DequantizeLinear pairs, with a calibrated range on every activation. That is what ONNX Runtime's static quantizer produces:
 
 ```
 from onnxruntime.quantization import quantize_static, QuantFormat, QuantType
@@ -65,16 +67,7 @@ quantize_static("model_pre.onnx", "model_int8.onnx", calibration_reader,
 - Calibration reader: it feeds a few hundred representative, preprocessed inputs (e.g. 64–256).
 - Input override: replace image with your model's input name. It gives the image a zero point of 0, which all our models use.
 - Set ranges up front: any range you want to control goes in TensorQuantOverrides. Never edit scales in the ONNX afterwards: bias scales are derived from input scales, so a later edit silently breaks the layer.
-- Worked examples: models/mobilenetv2/build.py is a complete export-quantize-compile script for a classifier, and models/patchcore/quantize.py shows a custom output range.
-
-The graph must use operations Pluto runs.
-
-- Supported:
-  - 1×1 convolutions; 3×3 convolutions and 3×3 depthwise at stride 1 or 2 with padding 1; small dense kernels via a generic path
-  - ReLU and ReLU6 (folded into quantization)
-  - SiLU
-  - Add, Concat, max-pool, 2× nearest-neighbour Resize, global average pool, a final fully-connected (Gemm)
-  - YOLOX's Focus slicing
+- Worked examples: models/mobilenetv2/build.py is a complete export-quantize-compile script for a classifier
 
 ## Running a model
 
@@ -88,6 +81,18 @@ plt run model.pluto --input input.bin --profile
 - --repeat 15 gives warm timings.
 - --topk 5 prints classifier labels; --yolox decodes detections.
 - --camera --rtsp runs live.
+
+## Supported Operations
+
+The graph must use operations Pluto runs.
+
+- 1×1 convolutions; 3×3 convolutions and 3×3 depthwise at stride 1 or 2 with padding 1; small dense kernels via a generic path
+- ReLU and ReLU6 (folded into quantization)
+- SiLU
+- Add, Concat, max-pool, 2× nearest-neighbour Resize, global average pool, a final fully-connected (Gemm)
+- YOLOX's Focus slicing
+
+If you need support for additional layers, just ask your favorite AI model :)
 
 # Reverse Engineering Notes
 
